@@ -8,3 +8,4 @@ networkx~=3.4.2
 numpy~=2.2.3
 mplcursors~=0.6
 scapy~=2.6.1
+windows-curses~=2.4.1
