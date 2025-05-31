@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Packet Sniffer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="modal fade" id="modeSelectionModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modeSelectionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modeSelectionModalLabel">Vyberte prosím zdroj dátového toku</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="mode-choice-container">
+                        <div class="mode-option" id="pcapOption">
+                            <div class="mode-option-icon">📁</div>
+                            <h4>Analýza PCAP súboru</h4>
+                            <p>Načítanie, analýza a vizualizácie dát z PCAP súboru</p>
+                        </div>
+                        
+                        <div class="mode-option" id="liveOption">
+                            <div class="mode-option-icon">📡</div>
+                            <h4>Zachytávanie na rozhraní</h4>
+                            <p>Zachytávanie a vizualizovanie živých dát z rozhrania</p>
+                        </div>
+                    </div>
+                    <div class="pcap-file-input" id="pcapFileInputContainer">
+                        <div class="mb-3">
+                            <label for="pcapFileInput" class="form-label">Vyberte PCAP súbor</label>
+                            <input class="form-control" type="file" id="pcapFileInput" accept=".pcap,.pcapng">
+                        </div>
+                    </div>
+                    <div class="interface-select-container" id="interfaceSelectContainer">
+                        <div class="mb-3">
+                            <select id="modalInterfaceSelector" class="form-select">
+                                <option value="">Načítavam sieťové rozhrania...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" id="confirmModeBtn" disabled>Pokračovať</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light navbar-custom">
+        <div class="container-fluid">
+            <div class="navbar-nav me-auto d-flex align-items-center">
+                <div id="captureControls" class="d-flex align-items-center">
+                    <div class="nav-item interface-control" style="display: none;">
+                        <select id="interfaceSelector" class="form-select d-inline-block" style="width: auto;">
+                            <option value="">Načítavam sieťové rozhrania...</option>
+                        </select>
+                    </div>
+                    <div class="nav-item pcap-control" style="display: none;">
+                        <button id="changePcapBtn" class="btn btn-outline-primary me-2">Zmena PCAP súboru</button>
+                        <span id="currentPcapFile">Žiadny PCAP súbor</span>
+                    </div>
+                </div>
+        
+                <div id="nav_buttons" class="d-flex gap-2 ms-3">
+                    <button id="startCaptureBtn" class="btn btn-primary">ŠTART</button>
+                    <button id="stopCaptureBtn" class="btn btn-danger" style="display: none;">STOP</button>
+                    <button id="clearTableBtn" class="btn btn-warning">Vyčistiť stav</button>
+                    <button id="changeModeBtn" class="btn btn-secondary" onclick="resetCaptureMode()">Zmena módu</button>
+                </div>
+            </div>
+            <div class="d-flex justify-content-center align-items-center navbar-nav mx-auto">
+                Zachytených <span id="packet-count"> 0 </span> paketov
+            </div>
+            <div class="navbar-nav ms-auto">
+                <button id="exportJSONBtn" class="btn btn-secondary">Export JSON</button>
+                <button id="exportCSVBtn" class="btn btn-secondary">Export CSV</button>
+            </div>
+        </div>
+    </nav>
+   
+    <div class="main-container">
+        <div class="left-column">
+            <input type="text" class="form-control" id="displayFilter" placeholder="Zadajte filter...">
+           
+            <div class="table-container">
+                <table id="packetsTable" class="table table-striped table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Čas</th>
+                            <th>Zdrojová IP</th>
+                            <th>Cieľová IP</th>
+                            <th>Protokol</th>
+                            <th>Porty</th>
+                            <th>Veľkosť</th>
+                            <th>Informácie</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+       
+        <div class="right-column">
+            <div class="right-top">
+                <div class="visualization-controls">
+                    <select id="generalVisualizationType" class="form-control">
+                        <option value="default">Zvoľte vizualizáciu</option>
+                        <option value="data-usage">Objem dát v čase</option>
+                        <option value="protocol-distribution">Distribúcia protokolov</option>
+                        <option value="top-ips">Top odosielatelia a prijímatelia</option>
+                        <option value="connection-graph">Graf spojení aktívnych zariadení</option>
+                        <option value="packet-size-histogram">Distribúcia veľkostí paketov</option>
+                        <option value="all">Analýza tokov</option>
+                        <option value="port-distribution">Distribúcia portov</option>
+                        <option value="packet-timeline">Počet paketov v čase</option>
+                    </select>
+                    <button id="updateGeneralVisualizationBtn" class="btn btn-outline-primary btn-sm">Update</button>
+                    <button id="exportGeneralBtn" class="btn btn-sm btn-outline-secondary">Export</button>
+                </div>
+                <div id="generalVisualizationContainer" class="visualization-container">
+                    <p>Zvoľte vizualizáciu...</p>
+                </div>
+            </div>
+           
+            <div class="right-bottom">
+                <div class="visualization-controls">
+                    <select id="specificProtocolType" class="form-control">
+                        <option value="default">Zvoľte protokol</option>
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                        <option value="icmp">ICMP</option>
+                        <option value="dns">DNS</option>
+                        <option value="http">HTTP</option>
+                        <option value="arp">ARP</option>
+                        <option value="modbus">MODBUS TCP</option>
+                        <option value="dnp3">DNP3</option>
+                        <option value="s7comm">S7COMM</option>
+                    </select>
+                    <select id="specificVisualizationType" class="form-control">
+                        <option value="default">Zvoľte vizualizáciu</option>
+                    </select>
+                    <button id="updateSpecificVisualizationBtn" class="btn btn-outline-primary btn-sm">Update</button>
+                    <button id="exportSpecificBtn" class="btn btn-sm btn-outline-secondary">Export</button>
+                </div>
+                <div id="specificVisualizationContainer" class="visualization-container">
+                    <p>Zvoľte protokol a vizualizáciu</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.3.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+    <script type="module" src="{{ url_for('static', filename='app.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='visualisations.js') }}"></script>
+</body>
+</html>
